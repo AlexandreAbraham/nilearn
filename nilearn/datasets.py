@@ -1084,6 +1084,7 @@ def fetch_msdl_atlas(data_dir=None, url=None, resume=True, verbose=0):
         Path of the data directory. Used to force data storage in a specified
         location. Default: None
 
+<<<<<<< HEAD:nilearn/datasets.py
     url: string, optional
         Override download URL. Used for test only (or if you setup a mirror of
         the data).
@@ -1211,3 +1212,131 @@ def load_harvard_oxford(atlas_name,
         new_label += 1
 
     return nibabel.Nifti1Image(regions, regions_img.get_affine())
+
+
+def fetch_kamitani(data_dir=None, url=None, resume=True, verbose=0):
+    """Download and loads kamitani dataset
+    Returns
+    -------
+    data: Bunch
+        Dictionary-like object, the interest attributes are :
+        'func': string list
+            Paths to nifti file with bold data
+        'label': string list
+            Paths to text file containing session and target data
+        'mask': string
+            Path to nifti general mask file
+
+    References
+    ----------
+
+    Notes
+    -----
+    This dataset is available on brainliner initiative website:
+
+    See `additional information
+    <http://www.sciencemag.org/content/293/5539/2425>`_
+    """
+
+    # Dataset files
+
+    # Functional MRI:
+    #   * 20 random scans (usually used for training)
+    #   * 12 figure scans (usually used for testing)
+
+    file_func_figure = [os.path.join('func', 'data_figure_run%02d.nii.gz' % i)
+                        for i in range(1, 13)]
+
+    file_func_random = [os.path.join('func', 'data_random_run%02d.nii.gz' % i)
+                        for i in range(1, 21)]
+
+    # Labels, 10x10 patches, stimuli shown to the subject:
+    #   * 20 random labels
+    #   * 12 figure labels (letters and shapes)
+
+    file_label_figure = [os.path.join('label',
+                                      'data_figure_run%02d_label.npz' % i)
+                         for i in range(1, 13)]
+
+    file_label_random = [os.path.join('label',
+                                      'data_random_run%02d_label.npz' % i)
+                         for i in range(1, 21)]
+
+    # Masks
+
+    file_mask = [
+        'mask.nii.gz',
+        'LHlag0to1.nii.gz',
+        'LHlag10to11.nii.gz',
+        'LHlag1to2.nii.gz',
+        'LHlag2to3.nii.gz',
+        'LHlag3to4.nii.gz',
+        'LHlag4to5.nii.gz',
+        'LHlag5to6.nii.gz',
+        'LHlag6to7.nii.gz',
+        'LHlag7to8.nii.gz',
+        'LHlag8to9.nii.gz',
+        'LHlag9to10.nii.gz',
+        'LHV1d.nii.gz',
+        'LHV1v.nii.gz',
+        'LHV2d.nii.gz',
+        'LHV2v.nii.gz',
+        'LHV3A.nii.gz',
+        'LHV3.nii.gz',
+        'LHV4v.nii.gz',
+        'LHVP.nii.gz',
+        'RHlag0to1.nii.gz',
+        'RHlag10to11.nii.gz',
+        'RHlag1to2.nii.gz',
+        'RHlag2to3.nii.gz',
+        'RHlag3to4.nii.gz',
+        'RHlag4to5.nii.gz',
+        'RHlag5to6.nii.gz',
+        'RHlag6to7.nii.gz',
+        'RHlag7to8.nii.gz',
+        'RHlag8to9.nii.gz',
+        'RHlag9to10.nii.gz',
+        'RHV1d.nii.gz',
+        'RHV1v.nii.gz',
+        'RHV2d.nii.gz',
+        'RHV2v.nii.gz',
+        'RHV3A.nii.gz',
+        'RHV3.nii.gz',
+        'RHV4v.nii.gz',
+        'RHVP.nii.gz'
+    ]
+
+    file_mask = [os.path.join('mask', m) for m in file_mask]
+
+    file_names = file_func_figure + file_func_random + \
+                 file_label_figure + file_label_random + \
+                 file_mask
+
+    # Load the dataset
+    files = []
+    try:
+        # Try to load the dataset
+        files = _get_dataset("kamitani", file_names, data_dir=data_dir)
+    except IOError:
+        # If the dataset does not exists, we download it
+        files = _get_dataset("kamitani", file_names, data_dir=data_dir)
+        """
+        if url is None:
+            url = 'http://data.pymvpa.org/datasets/haxby2001/'
+        # Get the MD5sums file
+        md5sums = _fetch_file(url + 'MD5SUMS',
+                              data_dir=_get_dataset_dir("haxby2001", data_dir))
+        if md5sums:
+            md5sums = _read_md5_sum_file(md5sums)
+        urls = ["%ssubj%d-2010.01.14.tar.gz" % (url, i)
+                for i in range(1, n_subjects + 1)]
+        _fetch_dataset('haxby2001', urls, data_dir=data_dir,
+                       resume=resume, md5sums=md5sums, verbose=verbose)
+        """
+
+    # Return the data
+    return Bunch(
+        func=files[:32],
+        label=files[32:64],
+        mask=files[64],
+        mask_roi=files[65:])
