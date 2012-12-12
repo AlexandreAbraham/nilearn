@@ -26,20 +26,22 @@ classifier = [
 
 # Output
 generate_video = [None, 'video.mp4']
+generate_gif = [None, 'video.gif']
 generate_image = [None, 'picture.png']
 
 ### Init ######################################################################
 
 remove_rest_period = True
 foveal_focus_radius = None
-multi_scale = False
+multi_scale = True
 detrend = True
 standardize = False
 
-learn_fusion_params = False  # Learn fusion params with LinearRegression
+learn_fusion_params = True  # Learn fusion params with LinearRegression
 classifier = 'omp'
 
-generate_video = None
+generate_video = ('video_' + classifier + '.mp4')
+generate_gif = ('video_' + classifier + '.gif')
 generate_image = None
 
 ### Imports ###################################################################
@@ -47,7 +49,7 @@ generate_image = None
 from matplotlib import pyplot as plt
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.pipeline import Pipeline
-
+import collections
 
 ### Load Kamitani dataset #####################################################
 from nisl import datasets
@@ -56,7 +58,7 @@ X_random = dataset.func[12:]
 X_figure = dataset.func[:12]
 y_random = dataset.label[12:]
 y_figure = dataset.label[:12]
-
+y_shape = (10, 10)
 
 ### Preprocess data ###########################################################
 import numpy as np
@@ -74,28 +76,21 @@ X_test = masker.transform(X_figure)
 # Load target data
 y_train = []
 for y in y_random:
-    y_train.append(np.load(y)['label'])
+    y_train.append(np.reshape(np.loadtxt(y, dtype=np.int, delimiter=','),
+                              (-1,) + y_shape, order='F'))
 
 y_test = []
 for y in y_figure:
-    y_train.append(np.load(y)['label'])
+    y_test.append(np.reshape(np.loadtxt(y, dtype=np.int, delimiter=','),
+                             (-1,) + y_shape, order='F'))
 
-
-X_train = np.hstack(X_random).T
-y_train = np.hstack(y_random).astype(np.float).T
-X_test = np.hstack(X_figure).T
-y_test = np.hstack(y_figure).astype(np.float).T
+X_train = np.vstack(X_train)
+y_train = np.vstack(y_train).astype(np.float)
+X_test = np.vstack(X_test)
+y_test = np.vstack(y_test).astype(np.float)
 
 n_pixels = y_train.shape[1]
 n_features = X_train.shape[1]
-
-
-# Remove rest period
-if remove_rest_period:
-    X_train = X_train[y_train[:, 0] != -1]
-    y_train = y_train[y_train[:, 0] != -1]
-    X_test = X_test[y_test[:, 0] != -1]
-    y_test = y_test[y_test[:, 0] != -1]
 
 
 # Take only the foveal part (radius is custom)
@@ -125,7 +120,6 @@ def flatten(list_of_2d_array):
 
 # Compute scaled images
 if multi_scale:
-    y_shape = (10, 10)
     y_rows, y_cols = y_shape
 
     # Height transform :
@@ -162,37 +156,13 @@ y_test = np.asarray(flatten(y_test))
 y_train = np.asarray(y_train)
 
 
-# Try to learn coefficients to merge images
-if multi_scale and learn_fusion_params:
-    from sklearn.linear_model import LinearRegression
-    clf = LinearRegression()
-    clf.fit(X_train, y_train)
+# Remove rest period
+if remove_rest_period:
+    X_train = X_train[y_train[:, 0] != -1]
+    y_train = y_train[y_train[:, 0] != -1]
+    X_test = X_test[y_test[:, 0] != -1]
+    y_test = y_test[y_test[:, 0] != -1]
 
-    t_pred = clf.predict(X_train)
-    t_preds = np.split(t_pred, [n_pixels, 1.5 * n_pixels,
-            2 * n_pixels, 2.25 * n_pixels], axis=1)
-
-    t_pred = t_preds[0]
-    t_pred_tall = np.array([np.dot(height_tf.T * 2,
-        np.reshape(m, (5, 10))).flatten() for m in t_preds[1]])
-    t_pred_large = np.array([np.dot(np.reshape(m, (10, 5)),
-        width_tf.T * 2).flatten() for m in t_preds[2]])
-    t_pred_big = [np.dot(height_tf.T * 2, np.reshape(m, (5, 5)))
-        for m in t_preds[3]]
-    t_pred_big = np.array([np.dot(np.reshape(m, (10, 5)),
-        width_tf.T * 2).flatten() for m in t_pred_big])
-
-    fusions = []
-    from sklearn.linear_model import LinearRegression
-    for i, t in enumerate(t_pred.T):
-        tX = np.column_stack((t_pred[:, i], t_pred_tall[:, i],
-            t_pred_large[:, i], t_pred_big[:, i]))
-        f = LinearRegression()
-        f.fit(tX, y_train[:, i])
-        fusions.append(f.coef_)
-
-    fusions = np.array(fusions)
-    fusions = (fusions.T / np.sum(fusions, axis=1)).T
 
 # Feature selection analysis
 """
@@ -244,35 +214,9 @@ plt.show()
 ### Prediction function #######################################################
 
 print "Learning"
-"""
-import copy
 
-def make_pipelines(feature_selection, clf, X_train, y_train, n_features):
-    pipelines = []
-    pipeline_ref = Pipeline([('fs', feature_selection), ('clf', clf)])
-    for i in range(n_features):
-        print "Count %d of %d" % ((i + 1), n_features)
-        pipeline = copy.deepcopy(pipeline_ref)
-        pipeline.fit(X_train, y_train[i, :])
-        pipelines.append(pipeline)
-    return pipelines
-
-
-def predict(pipelines, X_test):
-    preds = []
-    for i, x_test in enumerate(X_test):
-        pred = []
-        for p in pipelines:
-            pred.append(p.predict(x_test))
-        pred = np.array(pred)
-        preds.append(pred.squeeze())
-    return preds
-"""
-
-# f_classif + SVC classique : 65%
+# f_classif + SVC classique
 if classifier == "anova_svc":
-    unique_classifier = False
-
     from sklearn.svm import SVC
     clfs = []
 
@@ -286,19 +230,17 @@ if classifier == "anova_svc":
 
 # Ridge
 elif classifier == "ridge":
-    unique_classifier = True
-    from sklearn.linear_model import RidgeRegressionCV
-    clf = RidgeRegressionCV()
+    from sklearn.linear_model import RidgeCV
+    clf = RidgeCV()
     clf.fit(X_train, y_train)
 
 # f_classif + Ridge
 elif classifier == 'anova_ridge':
-    unique_classifier = False
-    from sklearn.linear_model import RidgeRegressionCV
+    from sklearn.linear_model import RidgeCV
     clfs = []
     for i, pixel_time_serie in enumerate(y_train.T):
         print "Count %d of %d" % ((i + 1), y_train.shape[1])
-        clf = RidgeRegressionCV()
+        clf = RidgeCV()
         feature_selection = SelectKBest(f_classif, k=50)
         anova_clf = Pipeline([('anova', feature_selection), ('clf', clf)])
         anova_clf.fit(X_train, pixel_time_serie)
@@ -306,14 +248,12 @@ elif classifier == 'anova_ridge':
 
 # OMP
 elif classifier == "omp":
-    unique_classifier = True
     from sklearn.linear_model import OrthogonalMatchingPursuit as OMP
     clf = OMP(n_nonzero_coefs=20)
     clf.fit(X_train, y_train)
 
 # LassoLars
 elif classifier == "lassolars":
-    unique_classifier = False
     from sklearn.linear_model import LassoLarsCV
 
     clfs = []
@@ -325,7 +265,6 @@ elif classifier == "lassolars":
 
 # f_classif 100 + sparse SVC
 elif classifier == "anova_sparsesvc":
-    unique_classifier = False
     from sklearn.svm.sparse import SVC
     clfs = []
 
@@ -339,7 +278,6 @@ elif classifier == "anova_sparsesvc":
 
     # Bayesian Ridge
 elif classifier == "bayesianridge":
-    unique_classifier = False
     from sklearn.linear_model import BayesianRidge
     clfs = []
     for i, pixel_time_serie in enumerate(y_train.T):
@@ -350,52 +288,130 @@ elif classifier == "bayesianridge":
         anova_svc.fit(X_train, pixel_time_serie)
         clfs.append(anova_svc)
 
-"""
-# Learn
-pipes = make_pipelines(SelectKBest(f_classif, k=100),
-        SVC(kernel='linear', C=1.), X_train, y_train, n_features)
-
-# Predict
-y_pred = predict(pipes, X_test)
-"""
-
 ### Prediction ################################################################
-
 print "Calculating scores and outputs"
+
 
 # Different processing for algorithms handling multiple outputs and those who
 # do not
-if unique_classifier:
-    y_pred = clf.predict(X_test)
-else:
-    y_pred = []
-    for i, x_test in enumerate(X_test):
-        pred = []
-        for c in clfs:
-            pred.append(c.predict(x_test))
-        pred = np.array(pred)
-        y_pred.append(pred.squeeze())
-    y_pred = np.array(y_pred)
+def _predict(clf, X):
+    """ Predict the output of X using classifier
+
+    This predicts output using given classifer. As a multiple output is
+    expected, clf can be a single classifier handling multiple output or a
+    list of classifier making single output.
+
+    Parameters
+    ----------
+
+    clf: (list of) classifier
+        Multiple output classifier or list of single ouput classifiers
+
+    X: 4D numpy array
+        Samples
+    """
+
+    if not isinstance(clf, collections.Iterable):
+        # Single classifier, we just predict
+        return clf.predict(X)
+    else:
+        # List of classifiers, we predict for each one
+        y_pred = []
+        for i, x in enumerate(X):
+            pred = []
+            for c in clfs:
+                pred.append(c.predict(x))
+            pred = np.array(pred)
+            y_pred.append(pred.squeeze())
+        return np.array(y_pred)
 
 
-# Revert scaled images if needed
-if multi_scale:
-    y_preds = np.split(y_pred, [n_pixels, 1.5 * n_pixels,
-            2 * n_pixels, 2.25 * n_pixels], axis=1)
+# Predict on the test data
+y_pred = _predict(clf, X_test)
 
+
+### Multi scale ###############################################################
+def _split_multi_scale(y, y_shape):
+    """ Split data into 4 original multi_scale images
+    """
+    yw, yh = y_shape
+
+    # Index of original image
+    split_index = [yw * yh]
+    # Index of large image
+    split_index.append(split_index[-1] + (yw - 1) * yh)
+    # Index of tall image
+    split_index.append(split_index[-1] + yw * (yh - 1))
+    # Index of big image
+    split_index.append(split_index[-1] + (yw - 1) * (yh - 1))
+
+    # We split according to computed indices
+    y_preds = np.split(y, split_index, axis=1)
+
+    # y_pred is the original image
     y_pred = y_preds[0]
-    y_pred_tall = np.array([np.dot(height_tf.T * 2,
-        np.reshape(m, (5, 10))).flatten() for m in y_preds[1]])
-    y_pred_large = np.array([np.dot(np.reshape(m, (10, 5)),
-        width_tf.T * 2).flatten() for m in y_preds[2]])
-    y_pred_big = [np.dot(height_tf.T * 2, np.reshape(m, (5, 5)))
-        for m in y_preds[3]]
-    y_pred_big = np.array([np.dot(np.reshape(m, (10, 5)),
-        width_tf.T * 2).flatten() for m in y_pred_big])
+
+    # y_pred_tall is the image with 1x2 patch application. We have to make
+    # some calculus to get it back in original shape
+    height_tf_i = (np.eye(y_cols) + np.eye(y_cols, k=-1))[:, :y_cols - 1] * .5
+    height_tf_i.flat[0] = 1
+    height_tf_i.flat[-1] = 1
+    y_pred_tall = [np.dot(height_tf_i, np.reshape(m, (yw - 1, yh))).flatten()
+                   for m in y_preds[1]]
+    y_pred_tall = np.asarray(y_pred_tall)
+
+    # y_pred_large is the image with 2x1 patch application. We have to make
+    # some calculus to get it back in original shape
+    width_tf_i = (np.eye(y_cols) + np.eye(y_cols, k=1))[:y_cols - 1] * .5
+    width_tf_i.flat[0] = 1
+    width_tf_i.flat[-1] = 1
+    y_pred_large = [np.dot(np.reshape(m, (yw, yh - 1)), width_tf_i).flatten()
+                   for m in y_preds[2]]
+    y_pred_large = np.asarray(y_pred_large)
+
+    # y_pred_big is the image with 2x2 patch application. We use previous
+    # matrices to get it back in original shape
+    y_pred_big = [np.dot(np.reshape(m, (yw - 1, yh - 1)), width_tf_i)
+                  for m in y_preds[3]]
+    y_pred_big = [np.dot(height_tf_i, np.reshape(m, (yw - 1, yh))).flatten()
+                  for m in y_pred_big]
+    y_pred_big = np.asarray(y_pred_big)
+
+    return (y_pred, y_pred_tall, y_pred_large, y_pred_big)
+
+
+### Learn fusion params ######################################################
+
+# If fusion parameters must be learn, we learn them on the prediction of
+# X_train. 4 parameters are computed for each pixel of the image
+
+if multi_scale:
+    y_pred, y_pred_tall, y_pred_large, y_pred_big = \
+            _split_multi_scale(y_pred, y_shape)
 
     if learn_fusion_params:
+
+        t_preds = _predict(clf, X_train)
+        t_pred, t_pred_tall, t_pred_large, t_pred_big = \
+            _split_multi_scale(t_preds, y_shape)
+
+        yw, yh = y_shape
+        y_train_original = y_train[:yw * yh]
+
+        fusions = []
+        from sklearn.linear_model import LinearRegression
+        for i in range(yw * yh):
+            tX = np.column_stack((t_pred[:, i], t_pred_tall[:, i],
+                t_pred_large[:, i], t_pred_big[:, i]))
+            f = LinearRegression()
+            f.fit(tX, y_train[:, i])
+            fusions.append(f.coef_)
+
+        fusions = np.array(fusions)
+        fusions = (fusions.T / np.sum(fusions, axis=1)).T
+
         y_pred = np.array([y_pred.T, y_pred_tall.T, y_pred_large.T,
-            y_pred_big.T])
+                y_pred_big.T])
         y_pred = np.sum(y_pred.T * fusions, axis=2)
     else:
         y_pred = (.25 * y_pred + .25 * y_pred_tall + .25 * y_pred_large
@@ -420,17 +436,20 @@ Show brains !
 """
 
 if generate_image:
-    print 'ok'
+    print 'generate_image: Not implemented'
 
 if generate_video:
     from matplotlib import animation
     fig = plt.figure()
     sp1 = plt.subplot(131)
     sp1.axis('off')
+    plt.title('Stimulus')
     sp2 = plt.subplot(132)
     sp2.axis('off')
+    plt.title('Reconstruction')
     sp3 = plt.subplot(133)
     sp3.axis('off')
+    plt.title('Thresholded')
     ims = []
     for i, t in enumerate(y_pred):
         ims.append((
@@ -443,3 +462,40 @@ if generate_video:
 
     im_ani = animation.ArtistAnimation(fig, ims, interval=1000)
     im_ani.save(generate_video)
+
+
+def fig2data(fig):
+    """ Convert a Matplotlib figure to a 3D numpy array with RGB channel
+    """
+    # draw the renderer
+    fig.canvas.draw()
+
+    # Get the RGB buffer from the figure
+    w, h = fig.canvas.get_width_height()
+    buf = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    buf.shape = (h, w, 3)
+    return buf
+
+
+if generate_gif:
+    ims = []
+    for i, t in enumerate(y_pred[:50]):
+        fig = plt.figure()
+        sp1 = plt.subplot(131)
+        sp1.axis('off')
+        plt.title('Stimulus')
+        sp2 = plt.subplot(132)
+        sp2.axis('off')
+        plt.title('Reconstruction')
+        sp3 = plt.subplot(133)
+        sp3.axis('off')
+        plt.title('Thresholded')
+        sp1.imshow(np.reshape(y_test[i], (10, 10)), cmap=plt.cm.gray,
+            interpolation='nearest')
+        sp2.imshow(np.reshape(t, (10, 10)), cmap=plt.cm.gray,
+            interpolation='nearest')
+        sp3.imshow(np.reshape(t > 0.5, (10, 10)), cmap=plt.cm.gray,
+            interpolation='nearest')
+        ims.append(fig2data(fig))
+    from nisl.external.visvis.images2gif import writeGif
+    writeGif(generate_gif, np.asarray(ims), duration=0.5, repeat=True)

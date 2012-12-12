@@ -1232,10 +1232,12 @@ def fetch_kamitani(data_dir=None, url=None, resume=True, verbose=0):
 
     Notes
     -----
-    This dataset is available on brainliner initiative website:
+    This dataset is available on the `brainliner website
+    <http://brainliner.jp/data/brainliner-admin/Reconstruct>`_
 
     See `additional information
-    <http://www.sciencemag.org/content/293/5539/2425>`_
+    <http://www.cns.atr.jp/dni/en/downloads/
+    fmri-data-set-for-visual-image-reconstruction/>`_
     """
 
     # Dataset files
@@ -1255,11 +1257,11 @@ def fetch_kamitani(data_dir=None, url=None, resume=True, verbose=0):
     #   * 12 figure labels (letters and shapes)
 
     file_label_figure = [os.path.join('label',
-                                      'data_figure_run%02d_label.npz' % i)
+                                      'data_figure_run%02d_label.csv' % i)
                          for i in range(1, 13)]
 
     file_label_random = [os.path.join('label',
-                                      'data_random_run%02d_label.npz' % i)
+                                      'data_random_run%02d_label.csv' % i)
                          for i in range(1, 21)]
 
     # Masks
