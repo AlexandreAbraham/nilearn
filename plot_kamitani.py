@@ -338,7 +338,7 @@ if pynax:
     bg = masker.inverse_transform(X_train[0]).get_data()
 
     def b(a, b, c, d, v=0.01):
-        return [a + v, b + v, c - v, d - v]
+        return [a + v, b + v, c - 2 * v, d - 2 * v]
 
     fig = pl.figure(figsize=(16, 8))
     ax_coef = fig.add_axes(b(0., 0., 0.25, 1.))
