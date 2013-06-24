@@ -26,7 +26,7 @@ pynax = True
 from matplotlib import pyplot as plt
 
 ### Load Kamitani dataset #####################################################
-from nisl import datasets
+from nilearn import datasets
 dataset = datasets.fetch_kamitani()
 X_random = dataset.func[12:]
 X_figure = dataset.func[:12]
@@ -36,7 +36,7 @@ y_shape = (10, 10)
 
 ### Preprocess data ###########################################################
 import numpy as np
-from nisl.io import NiftiMultiMasker
+from nilearn.io import NiftiMultiMasker
 
 print "Preprocessing data"
 
@@ -320,7 +320,7 @@ if generate_gif:
         sp3.imshow(np.reshape(t > threshold, (10, 10)), cmap=plt.cm.gray,
             interpolation='nearest')
         ims.append(fig2data(fig))
-    from nisl.external.visvis.images2gif import writeGif
+    from nilearn.external.visvis.images2gif import writeGif
     writeGif(generate_gif, np.asarray(ims), duration=0.5, repeat=True)
 
 if pynax:
