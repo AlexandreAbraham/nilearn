@@ -583,7 +583,7 @@ def fetch_yeo_2011_atlas(data_dir=None, url=None, resume=True, verbose=0):
         "Yeo2011_7Networks_ColorLUT.txt",
         "Yeo2011_17Networks_ColorLUT.txt",
         "FSL_MNI152_FreeSurferConformed_1mm.nii.gz")
-                 ]
+    ]
 
     try:
         sub_files = _get_dataset(dataset_name, filenames, data_dir=data_dir)
