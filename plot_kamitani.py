@@ -7,12 +7,13 @@ The Kamitani paper: reconstruction of visual stimuli
 ### Init ######################################################################
 
 remove_rest_period = True
-multi_scale = True
+multi_scale = False
 detrend = True
 standardize = False
 offset = 2
+threshold = 0.5
 
-learn_fusion_params = True  # Learn fusion params with LinearRegression
+learn_fusion_params = False  # Learn fusion params with LinearRegression
 
 #generate_video = 'video.mp4'
 #generate_gif = 'video.gif'
@@ -36,12 +37,12 @@ y_shape = (10, 10)
 
 ### Preprocess data ###########################################################
 import numpy as np
-from nilearn.io import NiftiMultiMasker
+from nilearn.io import MultiNiftiMasker
 
 print "Preprocessing data"
 
 # Load and mask fMRI data
-masker = NiftiMultiMasker(mask=dataset.mask, detrend=detrend,
+masker = MultiNiftiMasker(mask=dataset.mask, detrend=detrend,
                           standardize=standardize)
 masker.fit()
 X_train = masker.transform(X_random)
@@ -132,15 +133,28 @@ print "Learning"
 
 # OMP
 from sklearn.linear_model import OrthogonalMatchingPursuit as OMP
-clf = OMP(n_nonzero_coefs=20)
-clf.fit(X_train, y_train)
+from sklearn.linear_model import LogisticRegression as LR
+from sklearn.feature_selection import f_classif, SelectKBest
+from sklearn.pipeline import Pipeline
+# Create as many OMP as voxels to predict
+clfs = []
+for i in range(y_train.shape[1]):
+    print('Learning %d/%d' % (i, y_train.shape[1]))
+    clf = Pipeline([('selection', SelectKBest(f_classif, 500)),
+                    ('clf',
+                        OMP(n_nonzero_coefs=20)
+                        # LR(penalty='l1', C=0.01)
+                    )])
+    clf.fit(X_train, y_train[:, i])
+    clfs.append(clf)
 
 ### Prediction ################################################################
 print "Calculating scores and outputs"
 
-
-# Predict on the test data
-y_pred = clf.predict(X_test)
+y_pred = []
+for clf in clfs:
+    y_pred.append(clf.predict(X_test))
+y_pred = np.asarray(y_pred).T
 
 
 ### Multi scale ###############################################################
@@ -198,15 +212,20 @@ def _split_multi_scale(y, y_shape):
 # If fusion parameters must be learn, we learn them on the prediction of
 # X_train. 4 parameters are computed for each pixel of the image
 
+coefs = [clf.steps[1][1].coef_ for clf in clfs]
+coefs = np.asarray(coefs).T
 if multi_scale:
     y_pred, y_pred_tall, y_pred_large, y_pred_big = \
             _split_multi_scale(y_pred, y_shape)
 
-    yc, yc_tall, yc_large, yc_big = _split_multi_scale(clf.coef_.T, y_shape)
+    yc, yc_tall, yc_large, yc_big = _split_multi_scale(coefs, y_shape)
 
     if learn_fusion_params:
 
-        t_preds = clf.predict(X_train)
+        t_preds = []
+        for clf in clfs:
+            t_preds.append(clf.predict(X_train))
+        t_preds = np.asarray(t_preds).T
         t_pred, t_pred_tall, t_pred_large, t_pred_big = \
             _split_multi_scale(t_preds, y_shape)
 
@@ -236,23 +255,49 @@ if multi_scale:
             + .25 * y_pred_big)
         y_coef = (.25 * yc + .25 * yc_tall + .25 * yc_large + .25 * yc_big)
 else:
-    y_coef = clf.coef_.T
+    y_coef = coefs
 
-threshold = 0.5
+y_coef = y_coef.T
+y_coef_ = []
+for clf, c in zip(clfs, y_coef):
+    y_coef_.append(clf.steps[0][1].inverse_transform(c))
+y_coef = np.vstack(y_coef_)
 
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, \
+                            f1_score
+
+all_black = np.zeros_like(y_test)
+all_white = np.ones_like(y_test)
+
 print "Scores"
 print "------"
-print "  - Percentage: %f" % \
-        (float(np.sum(y_test == (y_pred > threshold))) / y_pred.shape[0])
-print "  - Precision: %f" % precision_score(y_test, y_pred > threshold)
-print "  - Recall: %f" % recall_score(y_test, y_pred > threshold)
-print "  - F1-score: %f" % f1_score(y_test, y_pred > threshold)
+print "  - Percentage: %f (%f-%f)" % (
+        accuracy_score(y_test, y_pred > threshold),
+        accuracy_score(y_test, all_black),
+        accuracy_score(y_test, all_white)
+)
+print "  - Precision: %f (%f-%f)" % (
+        precision_score(y_test, y_pred > threshold, pos_label=None),
+        precision_score(y_test, all_black, pos_label=None),
+        precision_score(y_test, all_white, pos_label=None)
+)
+print "  - Recall: %f (%f-%f)" % (
+        recall_score(y_test, y_pred > threshold, pos_label=None),
+        recall_score(y_test, all_black, pos_label=None),
+        recall_score(y_test, all_white, pos_label=None)
+)
+print "  - F1-score: %f (%f-%f)" % (
+        f1_score(y_test, y_pred > threshold, pos_label=None),
+        f1_score(y_test, all_black, pos_label=None),
+        f1_score(y_test, all_white, pos_label=None)
+)
 
 # F1 score of coefs
 coef_scores = np.zeros(100)
 for p in range(100):
-    coef_scores[p] = f1_score(y_test[p], y_pred[p] > threshold)
+    coef_scores[p] = f1_score(y_test[:, p], y_pred[:, p] > threshold,
+            pos_label=None)
+
 
 """
 Show brains !
@@ -331,7 +376,7 @@ if pynax:
     # Get all regressors scores
     coef_scores = np.reshape(coef_scores, (10, 10))
     # Unmask the coefs
-    coefs = masker.inverse_transform(y_coef.T).get_data()
+    coefs = masker.inverse_transform(y_coef).get_data()
     coefs = np.rollaxis(coefs, 3, 0)
     coefs = np.reshape(coefs, (10, 10, 64, 64, 30))
     coefs = np.ma.masked_equal(coefs, 0.)
@@ -387,10 +432,10 @@ if pynax:
     coefs_display_options = {}
     coefs_display_options['interpolation'] = 'nearest'
     coefs_display_options['cmap'] = pl.cm.hot
-    coefs_display_options['vmax'] = 1.
-    coefs_display_options['vmin'] = 0.
+    #coefs_display_options['vmax'] = 1.
+    #coefs_display_options['vmin'] = 0.
 
-    vcoefs = MatshowView(ax_coef, coef_scores, ['h', 'v'],
+    vcoefs = MatshowView(ax_coef, coef_scores, ['v', 'h'],
                          coefs_display_options)
     vcoefs.add_hmark(coef_x)
     vcoefs.add_vmark(coef_y)
@@ -399,5 +444,6 @@ if pynax:
     vy1.draw()
     vz1.draw()
     vcoefs.draw()
+    vcoefs.colorbar()
 
     pl.show()
