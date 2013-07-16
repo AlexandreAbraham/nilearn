@@ -154,4 +154,11 @@ pl.imshow(np.array(scores_log).mean(1).reshape(10, 10),
         interpolation="nearest")
 pl.hot()
 pl.colorbar()
+pl.tight_layout()
+pl.figure()
+pl.imshow(np.array(scores_omp).mean(1).reshape(10, 10),
+        interpolation="nearest")
+pl.hot()
+pl.colorbar()
+pl.tight_layout()
 pl.show()
