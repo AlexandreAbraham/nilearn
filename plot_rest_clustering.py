@@ -33,21 +33,16 @@ connectivity = image.grid_to_graph(n_x=shape[0], n_y=shape[1],
                                    n_z=shape[2], mask=mask)
 
 # Computing the ward for the first time, this is long...
-from sklearn.cluster import WardAgglomeration
+from sklearn.cluster import WardAgglomeration, KMeans
 import time
 start = time.time()
-ward = WardAgglomeration(n_clusters=1000, connectivity=connectivity,
+ward = WardAgglomeration(n_clusters=100, connectivity=connectivity,
                          memory='nilearn_cache')
 ward.fit(fmri_masked)
-print "Ward agglomeration 1000 clusters: %.2fs" % (time.time() - start)
+print "Ward agglomeration 100 clusters: %.2fs" % (time.time() - start)
 
-# Compute the ward with more clusters, should be faster as we are using
-# the caching mechanism
-start = time.time()
-ward = WardAgglomeration(n_clusters=2000, connectivity=connectivity,
-                         memory='nilearn_cache')
-ward.fit(fmri_masked)
-print "Ward agglomeration 2000 clusters: %.2fs" % (time.time() - start)
+kmeans = KMeans(n_clusters=100)
+kmeans.fit(fmri_masked)
 
 ### Show result ###############################################################
 
@@ -58,7 +53,12 @@ labels = nifti_masker.inverse_transform(labels).get_data()
 # 0 is the background, putting it to -1
 labels = labels - 1
 
+klabels = kmeans.labels_ + 1
+klabels = nifti_masker.inverse_transform(labels).get_data()
+# 0 is the background, putting it to -1
+klabels = labels - 1
 # Display the labels
+
 import pylab as pl
 
 # Cut at z=20
@@ -75,6 +75,14 @@ pl.axis('off')
 pl.imshow(colors[np.rot90(cut)], interpolation='nearest')
 pl.title('Ward parcellation')
 
+# Cluster '-1' should be black (it's outside the brain)
+colors[-1] = 0
+pl.figure()
+pl.axis('off')
+pl.imshow(colors[np.rot90(klabels[..., 20].astype(int))], interpolation='nearest')
+pl.title('KMeans parcellation')
+
+
 # Display the original data
 pl.figure()
 first_epi = nifti_masker.inverse_transform(fmri_masked[0]).get_data()
@@ -88,22 +96,3 @@ pl.imshow(np.rot90(first_epi[..., 20]),
 pl.axis('off')
 pl.title('Original (%i voxels)' % fmri_masked.shape[1])
 
-# A reduced data can be create by taking the parcel-level average:
-# Note that, as many objects in the scikit-learn, the ward object exposes
-# a transform method that modifies input features. Here it reduces their
-# dimension
-fmri_reduced = ward.transform(fmri_masked)
-
-# Display the corresponding data compressed using the parcellation
-fmri_compressed = ward.inverse_transform(fmri_reduced)
-compressed = nifti_masker.inverse_transform(
-    fmri_compressed[0]).get_data()
-compressed = np.ma.masked_equal(compressed, 0)
-
-
-pl.figure()
-pl.imshow(np.rot90(compressed[:, :, 20]),
-          interpolation='nearest', cmap=pl.cm.spectral, vmin=vmin, vmax=vmax)
-pl.title('Compressed representation (2000 parcels)')
-pl.axis('off')
-pl.show()
