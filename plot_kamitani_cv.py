@@ -162,3 +162,84 @@ pl.hot()
 pl.colorbar()
 pl.tight_layout()
 pl.show()
+    
+'''    
+from pynax.core import Mark
+from pynax.view import MatshowView, ImshowView
+import pylab as pl
+from nipy.labs import viz
+# Get all regressors scores
+coef_scores = np.reshape(scores_omp, (10, 10))
+# Unmask the coefs
+coefs = masker.inverse_transform(y_coef.T).get_data()
+coefs = np.rollaxis(coefs, 3, 0)
+coefs = np.reshape(coefs, (10, 10, 64, 64, 30))
+coefs = np.ma.masked_equal(coefs, 0.)
+bg = masker.inverse_transform(X_train[0]).get_data()
+
+
+def b(a, b, c, d, v=0.01):
+    return [a + v, b + v, c - v, d - v]
+
+fig = pl.figure(figsize=(16, 8))
+ax_coef = fig.add_axes(b(0., 0., 0.25, 1.))
+ax_s1 = fig.add_axes(b(0.25, 0., 0.25, 1.))
+ax_f1 = fig.add_axes(b(.5, 0., 0.25, 1.))
+ax_t1 = fig.add_axes(b(.75, 0., 0.25, 1.))
+
+ax_coef.axis('off')
+ax_t1.axis('off')
+ax_f1.axis('off')
+ax_s1.axis('off')
+
+# Marks
+coef_x = Mark(0, {'color': 'r'})
+coef_y = Mark(0, {'color': 'r'})
+mx1 = Mark(20, {'color': 'b'})
+my1 = Mark(20, {'color': 'b'})
+mz1 = Mark(20, {'color': 'b'})
+
+display_options = {}
+display_options['interpolation'] = 'nearest'
+display_options['cmap'] = pl.cm.gray
+
+ac_display_options = {}
+ac_display_options['interpolation'] = 'nearest'
+ac_display_options['cmap'] = viz.cm.cold_hot
+max_ = np.abs(coefs).max()
+ac_display_options['vmin'] = -max_
+ac_display_options['vmax'] = max_
+
+vx1 = ImshowView(ax_s1, bg, [mx1, 'h', '-v'], display_options)
+vx1.add_layer(coefs, [coef_x, coef_y, mx1, 'h', '-v'], ac_display_options)
+vx1.add_hmark(my1)
+vx1.add_vmark(mz1)
+
+vy1 = ImshowView(ax_f1, bg, ['h', my1, '-v'], display_options)
+vy1.add_layer(coefs, [coef_x, coef_y, 'h', my1, '-v'], ac_display_options)
+vy1.add_hmark(mx1)
+vy1.add_vmark(mz1)
+
+vz1 = ImshowView(ax_t1, bg, ['h', '-v', mz1], display_options)
+vz1.add_layer(coefs, [coef_x, coef_y, 'h', '-v', mz1], ac_display_options)
+vz1.add_hmark(mx1)
+vz1.add_vmark(my1)
+
+coefs_display_options = {}
+coefs_display_options['interpolation'] = 'nearest'
+coefs_display_options['cmap'] = pl.cm.hot
+coefs_display_options['vmax'] = 1.
+coefs_display_options['vmin'] = 0.
+
+vcoefs = MatshowView(ax_coef, coef_scores, ['h', 'v'],
+                     coefs_display_options)
+vcoefs.add_hmark(coef_x)
+vcoefs.add_vmark(coef_y)
+
+vx1.draw()
+vy1.draw()
+vz1.draw()
+vcoefs.draw()
+
+pl.show()
+'''
