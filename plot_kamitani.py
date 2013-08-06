@@ -4,6 +4,11 @@ The Kamitani paper: reconstruction of visual stimuli
 
 """
 
+
+def fitta(fuckin_fitta, *the_fuckin_data):
+    fuckin_fitta.fit(*the_fuckin_data)
+    return fuckin_fitta
+
 ### Init ######################################################################
 
 remove_rest_period = True
@@ -136,18 +141,21 @@ from sklearn.linear_model import OrthogonalMatchingPursuit as OMP
 from sklearn.linear_model import LogisticRegression as LR
 from sklearn.feature_selection import f_classif, SelectKBest
 from sklearn.pipeline import Pipeline
+from joblib import Parallel, delayed
+
 # Create as many OMP as voxels to predict
 clfs = []
 for i in range(y_train.shape[1]):
     print('Learning %d/%d' % (i, y_train.shape[1]))
     clf = Pipeline([('selection', SelectKBest(f_classif, 500)),
                     ('clf',
-                        OMP(n_nonzero_coefs=20)
-                        # LR(penalty='l1', C=0.01)
+                        # OMP(n_nonzero_coefs=4)
+                        LR(penalty='l1', C=0.01)
                     )])
-    clf.fit(X_train, y_train[:, i])
     clfs.append(clf)
 
+clfs = Parallel(n_jobs=-2)(delayed(fitta)(clf, X_train, y_train[:, i])
+                    for i, clf in enumerate(clfs))
 ### Prediction ################################################################
 print "Calculating scores and outputs"
 
@@ -295,8 +303,10 @@ print "  - F1-score: %f (%f-%f)" % (
 # F1 score of coefs
 coef_scores = np.zeros(100)
 for p in range(100):
-    coef_scores[p] = f1_score(y_test[:, p], y_pred[:, p] > threshold,
-            pos_label=None)
+    # coef_scores[p] = f1_score(y_test[:, p], y_pred[:, p] > threshold,
+    #         pos_label=None)
+    # coef_scores[p] = accuracy_score(y_test[:, p], y_pred[:, p] > threshold)
+    coef_scores[p] = np.log(np.abs(y_test[:, p] - y_pred[:, p]) + 1)
 
 
 """
@@ -380,7 +390,7 @@ if pynax:
     coefs = np.rollaxis(coefs, 3, 0)
     coefs = np.reshape(coefs, (10, 10, 64, 64, 30))
     coefs = np.ma.masked_equal(coefs, 0.)
-    bg = masker.inverse_transform(X_train[0]).get_data()
+    bg = masker.inverse_transform(X_train.mean(axis=0) + 5.).get_data()
 
     def b(a, b, c, d, v=0.01):
         return [a + v, b + v, c - 2 * v, d - 2 * v]
@@ -407,38 +417,48 @@ if pynax:
     display_options['interpolation'] = 'nearest'
     display_options['cmap'] = pl.cm.gray
 
+    #dist_mat = - (np.mgrid[-4.5:5.5, -4.5:5.5] ** 2).sum(axis=0) ** .5
+    dist_mat = np.arctan2(*np.mgrid[-4.5:5.5, -4.5:5.5]) + 5
+    all_coefs = np.zeros(coefs.shape[2:])
+
+    for x, y in np.ndindex(coefs.shape[:2]):
+        all_coefs += (coefs[x, y] != 0) * dist_mat[x, y]
+
+    all_coefs = np.ma.masked_equal(all_coefs, 0.)
+
     ac_display_options = {}
     ac_display_options['interpolation'] = 'nearest'
-    ac_display_options['cmap'] = viz.cm.cold_hot
-    max_ = np.abs(coefs).max()
-    ac_display_options['vmin'] = -max_
-    ac_display_options['vmax'] = max_
+    ac_display_options['cmap'] = pl.cm.hsv
+    ac_display_options['vmin'] = dist_mat.min()
+    ac_display_options['vmax'] = dist_mat.max()
 
     vx1 = ImshowView(ax_s1, bg, [mx1, 'h', '-v'], display_options)
-    vx1.add_layer(coefs, [coef_x, coef_y, mx1, 'h', '-v'], ac_display_options)
+    vx1.add_layer(all_coefs, [mx1, 'h', '-v'], ac_display_options)
     vx1.add_hmark(my1)
     vx1.add_vmark(mz1)
 
     vy1 = ImshowView(ax_f1, bg, ['h', my1, '-v'], display_options)
-    vy1.add_layer(coefs, [coef_x, coef_y, 'h', my1, '-v'], ac_display_options)
+    vy1.add_layer(all_coefs, ['h', my1, '-v'], ac_display_options)
     vy1.add_hmark(mx1)
     vy1.add_vmark(mz1)
 
     vz1 = ImshowView(ax_t1, bg, ['h', '-v', mz1], display_options)
-    vz1.add_layer(coefs, [coef_x, coef_y, 'h', '-v', mz1], ac_display_options)
+    vz1.add_layer(all_coefs, ['h', '-v', mz1], ac_display_options)
     vz1.add_hmark(mx1)
     vz1.add_vmark(my1)
 
     coefs_display_options = {}
     coefs_display_options['interpolation'] = 'nearest'
+    
+    coefs_display_options['vmax'] = 1.
+    coefs_display_options['vmin'] = 0.
     coefs_display_options['cmap'] = pl.cm.hot
-    #coefs_display_options['vmax'] = 1.
-    #coefs_display_options['vmin'] = 0.
-
     vcoefs = MatshowView(ax_coef, coef_scores, ['v', 'h'],
                          coefs_display_options)
-    vcoefs.add_hmark(coef_x)
-    vcoefs.add_vmark(coef_y)
+
+    # coefs_display_options['cmap'] = pl.cm.hsv
+    # vcoefs = MatshowView(ax_coef, dist_mat, ['v', 'h'],
+    #                      coefs_display_options)
 
     vx1.draw()
     vy1.draw()

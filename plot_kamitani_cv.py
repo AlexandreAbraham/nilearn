@@ -96,8 +96,9 @@ print "Learning"
 from sklearn.linear_model import OrthogonalMatchingPursuit as OMP
 clf = OMP(n_nonzero_coefs=20)
 clf.fit(X_train, y_train)
+y_coef = clf.coef_
 
-
+'''
 from sklearn.utils import check_arrays
 from sklearn.metrics.metrics import _is_1d, _check_1d_array
 
@@ -124,16 +125,16 @@ def log_score(y_true, y_pred):
             return 0.0
 
     return 1 - numerator / denominator
+'''
 
-
-from sklearn.linear_model import LogisticRegression
+#from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import OrthogonalMatchingPursuit
 from sklearn.feature_selection import f_classif, SelectKBest
 
 from sklearn.pipeline import Pipeline
 
-pipeline = Pipeline([('selection', SelectKBest(f_classif, 500)),
-                     ('clf', LogisticRegression(penalty="l1", C=0.01))])
+#pipeline = Pipeline([('selection', SelectKBest(f_classif, 500)),
+#                     ('clf', LogisticRegression(penalty="l1", C=0.01))])
 pipeline_OMP = Pipeline([('selection', SelectKBest(f_classif, 500)),
                      ('clf', OrthogonalMatchingPursuit(n_nonzero_coefs=10))])
 
@@ -141,37 +142,36 @@ from sklearn.cross_validation import cross_val_score
 
 from sklearn.externals.joblib import Parallel, delayed
 
-scores_log = Parallel(n_jobs=10)(delayed(cross_val_score)(pipeline, X_train, y,
-    score_func=log_score, cv=5, verbose=True) for y in y_train)
+#scores_log = Parallel(n_jobs=10)(delayed(cross_val_score)(pipeline, X_train, y,
+#    cv=5, verbose=True) for y in y_train)
 
 scores_omp = Parallel(n_jobs=10)(delayed(cross_val_score)(pipeline_OMP,
-    X_train, y, score_func=log_score, cv=5, verbose=True) for y in y_train)
+   X_train, y, cv=5, verbose=True) for y in y_train.T)
 
-import pylab as pl
+#import pylab as pl
 
-pl.figure()
-pl.imshow(np.array(scores_log).mean(1).reshape(10, 10),
-        interpolation="nearest")
-pl.hot()
-pl.colorbar()
-pl.tight_layout()
-pl.figure()
-pl.imshow(np.array(scores_omp).mean(1).reshape(10, 10),
-        interpolation="nearest")
-pl.hot()
-pl.colorbar()
-pl.tight_layout()
-pl.show()
+#pl.figure()
+#pl.imshow(np.array(scores_log).mean(1).reshape(10, 10),
+#        interpolation="nearest")
+#pl.hot()
+#pl.colorbar()
+#pl.tight_layout()
+#pl.figure()
+#pl.imshow(np.array(scores_omp).mean(1).reshape(10, 10),
+#        interpolation="nearest")
+#pl.hot()
+#pl.colorbar()
+#pl.tight_layout()
+#pl.show()
     
-'''    
 from pynax.core import Mark
 from pynax.view import MatshowView, ImshowView
 import pylab as pl
 from nipy.labs import viz
 # Get all regressors scores
-coef_scores = np.reshape(scores_omp, (10, 10))
+coef_scores = np.reshape(np.mean(scores_omp, 1), (10, 10))
 # Unmask the coefs
-coefs = masker.inverse_transform(y_coef.T).get_data()
+coefs = masker.inverse_transform(y_coef).get_data()
 coefs = np.rollaxis(coefs, 3, 0)
 coefs = np.reshape(coefs, (10, 10, 64, 64, 30))
 coefs = np.ma.masked_equal(coefs, 0.)
@@ -242,4 +242,3 @@ vz1.draw()
 vcoefs.draw()
 
 pl.show()
-'''
