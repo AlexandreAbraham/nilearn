@@ -105,19 +105,167 @@ print "Done in %1.2fs" % (t1 - t0)
 
 # scores = np.array(scores).T
 
-# n_voxels_for_lasso = 200
-# indices_for_lasso = scores.mean(0).argsort()[::-1][:n_voxels_for_lasso]
-# from sklearn.linear_model import LassoLarsCV
+n_voxels_for_lasso = 10
+indices_for_lasso = mean_scores.argsort()[::-1][:n_voxels_for_lasso]
+from sklearn.linear_model import LassoLarsCV
 
-# lasso = LassoLarsCV(max_iter=100,)
+lasso = LassoLarsCV(max_iter=10,)
 
-# receptive_fields = []
+receptive_fields = []
 
-# y_train_centered = y_train.reshape(-1, 100)
-# y_train_centered = (y_train_centered -
-#                     y_train_centered.mean(0)) / y_train_centered.std(0)
+y_train_centered = y_train.reshape(-1, 100)
+y_train_centered = (y_train_centered -
+                    y_train_centered.mean(0)) / y_train_centered.std(0)
 
-# for i, index in enumerate(indices_for_lasso):
-#     print "%d %d" % (i, index)
-#     receptive_fields.append(
-#         lasso.fit(y_train.reshape(-1, 100), X_train[:, index]).coef_)
+for i, index in enumerate(indices_for_lasso):
+    print "%d %d" % (i, index)
+    receptive_fields.append(
+        lasso.fit(y_train.reshape(-1, 100), X_train[:, index]).coef_)
+
+
+rfs = np.array(receptive_fields).reshape(-1, 10, 10)
+grid = np.mgrid[-4.5:5.5, -4.5:5.5]
+
+bary_coords = ((np.abs(rfs) /
+           np.abs(rfs).sum(-1).sum(-1)[:, np.newaxis, np.newaxis]
+    )[:, np.newaxis, :, :] *
+    grid[np.newaxis, :, :, :]).sum(-1).sum(-1)
+
+
+grid_squared = grid[:, np.newaxis, :, :] * grid[np.newaxis, :, :, :]
+
+coord_mom2 = ((np.abs(rfs) /
+           np.abs(rfs).sum(-1).sum(-1)[:, np.newaxis, np.newaxis]
+    )[:, np.newaxis, np.newaxis, :, :] *
+    grid_squared[np.newaxis, :, :, :]).sum(-1).sum(-1)
+
+coord_var = coord_mom2 - (bary_coords[:, :, np.newaxis] *
+                          bary_coords[:, np.newaxis, :])
+
+coord_var_det = coord_var[:, 0, 0] * coord_var[:, 1, 1] - coord_var[:, 0, 1] ** 2
+
+problem = coord_var_det < 0
+no_problem = coord_var_det >= 0
+coord_std = np.zeros_like(coord_var_det)
+coord_std[no_problem] = np.sqrt(coord_var_det[no_problem])
+
+
+correlations = ((X_train - X_train.mean(0)) / X_train.std(0)).T.dot(
+    ((y_train - y_train.mean(0)) / y_train.std(0)).reshape(-1, 100)) / (len(X_train) - 1)
+
+
+more_problem = np.logical_or(np.isnan(bary_coords).any(axis=1), problem)
+
+
+angles = np.zeros_like(coord_std)
+angles[more_problem == False] = np.arctan2(bary_coords[:, 1], -bary_coords[:, 0])
+
+# angle_brain = mask.
+
+
+
+
+
+# this goes towards finding the surroundings of one given voxel
+
+brain_with_indices = masker.inverse_transform(
+    np.arange(n_features) + 1).get_data() - 1
+
+
+def ind_2_sub(ind):
+    coord = np.array(np.where(brain_with_indices == ind)).ravel()
+
+    if len(coord == 3):
+        return coord
+
+
+def sub_2_ind(sub):
+    try:
+        ind = brain_with_indices[tuple(sub)]
+    except:
+        ind = -1
+
+    if ind >= 0:
+        return ind
+
+
+def extract_27_neighbourhood(sub):
+    sub = np.array(sub).ravel()
+    if len(sub) != 3:
+        raise Exception("Don't understand, want subscript for one point")
+
+    coords = sub.reshape(-1, 1, 1, 1) + np.mgrid[[slice(-1, 2)] * 3]
+
+    coords = coords.reshape(3, -1).T
+
+    return coords
+
+
+def extract_index_neighbourhood(ind):
+
+    sub = ind_2_sub(ind)
+
+    neighbourhoods = extract_27_neighbourhood(sub)
+
+    return [sub_2_ind(sub) for sub in neighbourhoods]
+
+
+def get_lasso_rfs(indices):
+
+    lrfs = []
+    for index in indices:
+        try:
+            lrfs.append(
+                lasso.fit(y_train.reshape(-1, 100),
+                        X_train[:, index]).coef_.reshape(10, 10))
+        except:
+            lrfs.append(None)
+
+    return lrfs
+
+
+
+# show 27 voxel around a central one
+vind = 1951
+
+index_neighbourhood = extract_index_neighbourhood(vind)
+subscript_neighbourhood = extract_27_neighbourhood(ind_2_sub(vind))
+
+neighbourhood_scores = np.array(scores).mean(0)[index_neighbourhood]
+
+n_lasso_rfs = get_lasso_rfs(index_neighbourhood)
+
+vmin = 0
+vmax =  np.array(n_lasso_rfs).max()
+
+import pylab as pl
+for i in range(3):
+    pl.figure()
+    for j in range(9):
+        k = i * 9 + j
+        pl.subplot(3, 3, j + 1)
+        pl.imshow(np.array(n_lasso_rfs).reshape(3, 9, 10, 10)[i, j],
+                  interpolation="nearest", vmin=vmin, vmax=vmax)
+        pl.gray()
+        pl.xticks([])
+        pl.yticks([])
+        pl.xlabel('%d %s %1.3f' %  (index_neighbourhood[k],
+                            str(tuple(subscript_neighbourhood[k])),
+            neighbourhood_scores[k]))
+
+
+
+the_chosen_voxels = [1780, 1951, 2131, 1935]
+
+where_are_they = np.where((np.array(the_chosen_voxels)[:, np.newaxis] ==
+                  np.array(index_neighbourhood)).any(0))[0]
+
+chosen_rfs = np.array(n_lasso_rfs)[where_are_they, :, :]
+
+for rf, index in zip(chosen_rfs, where_are_they):
+    pl.figure()
+    pl.imshow(rf, vmin=0, interpolation="nearest")
+    pl.axis('off')
+    pl.title('%d, %s' % (index_neighbourhood[index],
+                         str(subscript_neighbourhood[index])))
+
