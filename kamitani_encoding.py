@@ -269,3 +269,11 @@ for rf, index in zip(chosen_rfs, where_are_they):
     pl.title('%d, %s' % (index_neighbourhood[index],
                          str(subscript_neighbourhood[index])))
 
+
+# All the voxels live in axial slice 10
+pl.figure()
+score_brain = masker.inverse_transform(
+np.array(scores).mean(0))
+slice10 = score_brain.get_data()[:, :, 10]
+pl.imshow(slice10, interpolation="nearest")
+pl.hot()
