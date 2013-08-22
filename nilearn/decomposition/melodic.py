@@ -63,7 +63,7 @@ class MelodicICA(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y=None):
         melodic = MELODIC()
-        melodic.inputs.approach = approach
+        melodic.inputs.approach = self.approach
         melodic.inputs.num_ICs = self.n_components
 
         # Temporary directory
