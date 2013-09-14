@@ -12,20 +12,20 @@ def fitta(fuckin_fitta, *the_fuckin_data):
 ### Init ######################################################################
 
 remove_rest_period = True
-multi_scale = False
+multi_scale = True
 detrend = True
 standardize = False
 offset = 2
 threshold = 0.5
 
-learn_fusion_params = False  # Learn fusion params with LinearRegression
+learn_fusion_params = True  # Learn fusion params with LinearRegression
 
-#generate_video = 'video.mp4'
+generate_video = 'video.mp4'
 #generate_gif = 'video.gif'
-generate_video = None
+#generate_video = None
 generate_gif = None
 generate_image = None
-pynax = True
+pynax = False
 
 ### Imports ###################################################################
 
@@ -226,8 +226,9 @@ if multi_scale:
     y_pred, y_pred_tall, y_pred_large, y_pred_big = \
             _split_multi_scale(y_pred, y_shape)
 
-    yc, yc_tall, yc_large, yc_big = _split_multi_scale(coefs, y_shape)
+    # yc, yc_tall, yc_large, yc_big = _split_multi_scale(coefs, y_shape)
 
+    """
     if learn_fusion_params:
 
         t_preds = []
@@ -262,15 +263,17 @@ if multi_scale:
         y_pred = (.25 * y_pred + .25 * y_pred_tall + .25 * y_pred_large
             + .25 * y_pred_big)
         y_coef = (.25 * yc + .25 * yc_tall + .25 * yc_large + .25 * yc_big)
+        """
 else:
     y_coef = coefs
 
+'''
 y_coef = y_coef.T
 y_coef_ = []
 for clf, c in zip(clfs, y_coef):
     y_coef_.append(clf.steps[0][1].inverse_transform(c))
 y_coef = np.vstack(y_coef_)
-
+'''
 from sklearn.metrics import accuracy_score, precision_score, recall_score, \
                             f1_score
 
@@ -301,13 +304,14 @@ print "  - F1-score: %f (%f-%f)" % (
 )
 
 # F1 score of coefs
+'''
 coef_scores = np.zeros(100)
 for p in range(100):
     # coef_scores[p] = f1_score(y_test[:, p], y_pred[:, p] > threshold,
     #         pos_label=None)
-    # coef_scores[p] = accuracy_score(y_test[:, p], y_pred[:, p] > threshold)
-    coef_scores[p] = np.log(np.abs(y_test[:, p] - y_pred[:, p]) + 1)
-
+    coef_scores[p] = accuracy_score(y_test[:, p], y_pred[:, p] > threshold)
+    # coef_scores[p] = np.log(np.abs(y_test[:, p] - y_pred[:, p]) + 1)
+'''
 
 """
 Show brains !
