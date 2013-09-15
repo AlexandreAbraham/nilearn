@@ -248,10 +248,10 @@ class MultiNiftiMasker(BaseMasker, CacheMixin):
             copy = not isinstance(niimg, basestring)
 
             if check_affine:
-                niimg = _utils.check_niimgs(niimg)
+                niimg_ = _utils.check_niimgs(niimg)
 
                 if (self.target_affine is None and affine is not None
-                        and np.all(niimg.get_affine() != affine)):
+                        and np.all(niimg_.get_affine() != affine)):
                     warnings.warn('Affine is different across subjects.'
                                   ' Realignement on first subject affine forced')
                     self.target_affine = affine
