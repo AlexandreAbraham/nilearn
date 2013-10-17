@@ -115,12 +115,12 @@ def group_dictionary(Ys, n_atoms, prox, alpha, mu, maxit=100, minit=3,
     alpha *= n_group
 
     t0 = 0
-
+    
     if n_shuffle_subjects is not None:
         if n_shuffle_subjects * 2 > n_group:
             raise ValueError('Number of shuffled subjects must be lesser than '
                              'number of subjects div 2')
-
+    
     def cost_function():
         # r2 is the sum of squares residuals
         return (.5 * (sum(r2) + mu * sum(residuals_dV))
@@ -232,8 +232,8 @@ def group_dictionary(Ys, n_atoms, prox, alpha, mu, maxit=100, minit=3,
 
         t0_ = time.time()
         VsUs = Parallel(n_jobs=n_jobs)(delayed(_update_Vs_Us)
-                (Ys_, Us_, V, mu, id_subj=i, verbose=verbose)
-                for i, (Ys_, Us_) in
+                (ys_, us_, V, mu, id_subj=i, verbose=verbose)
+                for i, (ys_, us_) in
                     enumerate(zip(ys, us)))
         t0 += time.time() - t0_
         dt = t0
@@ -278,8 +278,7 @@ def group_dictionary(Ys, n_atoms, prox, alpha, mu, maxit=100, minit=3,
                 sys.stdout.write('!')
             elif verbose:
                 print 'Energy increased by %.2f* tol' % (-dE / (tol * E[-1]))
-
-        if last_iteration or dE < tol * abs(E[-1]):
+        elif last_iteration or dE < tol * abs(E[-1]):
             if n_shuffle_subjects is not None:
                 last_iteration = True
                 n_shuffle_subjects = None
