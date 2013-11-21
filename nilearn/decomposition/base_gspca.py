@@ -123,7 +123,7 @@ def group_dictionary(Ys, n_atoms, prox, alpha, mu, maxit=100, minit=3,
     def cost_function():
         # r2 is the sum of squares residuals
         return (.5 * (sum(r2) + mu * sum(residuals_dV))
-                + n_group * alpha * np.sum(V_norms))
+                + n_group * mu * alpha * np.sum(V_norms))
 
     # There are 6 possible configurations:
     # - nothing is given, Vs_init is computed using PCA
@@ -195,7 +195,7 @@ def group_dictionary(Ys, n_atoms, prox, alpha, mu, maxit=100, minit=3,
         if hasattr(prox, 'set_dVs'):
             prox.set_dVs(dVs)
         t0_ = time.time()
-        V, V_norms, residuals_dV = _update_V(Vs, prox, alpha / mu,
+        V, V_norms, residuals_dV = _update_V(Vs, prox, alpha,
                       non_penalized=non_penalized)
         t0 += time.time() - t0_
         dt = t0
