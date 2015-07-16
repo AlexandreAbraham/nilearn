@@ -53,8 +53,9 @@ for i, (r, c) in enumerate(zip(rows, cols)):
     values[i] = corr
 # Keep a number of correlation equal to XX% of the number of voxels
 n_voxels = connectivity.shape[0]
-thr = np.sort(values)[- int(n_voxels * 1.8)]
-print n_voxels, thr
+#thr = np.sort(values)[- int(n_voxels * 1.8)]
+#print n_voxels, thr
+thr = 0.
 rows = rows[np.where(values >= thr)]
 cols = cols[np.where(values >= thr)]
 values = values[np.where(values >= thr)]
