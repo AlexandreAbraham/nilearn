@@ -336,6 +336,36 @@ class GlassBrainAxes(BaseAxes):
             line = lines.Line2D(xdata, ydata, **this_kwargs)
             self.ax.add_line(line)
 
+    def add_contours(self, img, filled=False, **kwargs):
+        """ Contour a 3D map in all the views.
+
+            Parameters
+            -----------
+            img: Niimg-like object
+                See http://nilearn.github.io/building_blocks/manipulating_mr_images.html#niimg.
+                Provides image to plot.
+            filled: boolean, optional
+                If filled=True, contours are displayed with color fillings.
+            kwargs:
+                Extra keyword arguments are passed to contour, see the
+                documentation of pylab.contour
+                Useful, arguments are typical "levels", which is a
+                list of values to use for plotting a contour, and
+                "colors", which is one color or a list of colors for
+                these contours.
+        """
+        self._map_show(img, type='contour', **kwargs)
+        if filled:
+            colors = kwargs['colors']
+            levels = kwargs['levels']
+            # Append lower boundary value to '0' for contour fillings
+            levels.append(0.)
+            alpha = kwargs['alpha']
+            self._map_show(img, type='contourf', levels=levels, alpha=alpha,
+                           colors=colors[:3])
+
+        plt.draw_if_interactive()
+
 
 ###############################################################################
 # class BaseSlicer
