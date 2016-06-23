@@ -11,6 +11,9 @@ from matplotlib import colors
 from matplotlib import transforms
 
 
+glass_brain_template = None
+
+
 def _codes_bezier(pts):
     bezier_num = len(pts)
     # Next two lines are meant to handle both Bezier 3 and 4
@@ -98,8 +101,11 @@ def _get_json_and_transform(direction):
         'l': [0.38, 0, 0, 0.38, -108, -70],
         'r': [0.38, 0, 0, 0.38, -108, -70]}
 
-    dirname = os.path.dirname(os.path.abspath(__file__))
-    dirname = os.path.join(dirname, 'glass_brain_files')
+    if glass_brain_template:
+        dirname = glass_brain_template
+    else:
+        dirname = os.path.dirname(os.path.abspath(__file__))
+        dirname = os.path.join(dirname, 'glass_brain_files')
     direction_to_filename = dict([
         (_direction, os.path.join(
             dirname,
